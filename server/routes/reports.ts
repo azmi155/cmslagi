@@ -12,7 +12,7 @@ router.get('/stats', requireAuth, async (req, res) => {
       .selectFrom('devices')
       .select([
         db.fn.count('id').as('total_devices'),
-        db.fn.countAll().filterWhere('is_online', '=', true).as('online_devices')
+        db.fn.countAll().filterWhere('is_online', '=', 1).as('online_devices') // Use integer comparison
       ])
       .executeTakeFirst();
 
@@ -31,7 +31,7 @@ router.get('/stats', requireAuth, async (req, res) => {
     const activeSessions = await db
       .selectFrom('user_sessions')
       .select(db.fn.count('id').as('count'))
-      .where('is_active', '=', true)
+      .where('is_active', '=', 1) // Use integer comparison
       .executeTakeFirst();
 
     res.json({

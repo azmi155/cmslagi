@@ -74,7 +74,7 @@ router.post('/', requireAuth, async (req, res) => {
         port: devicePort,
         username: username.trim(),
         password: password,
-        is_online: false,
+        is_online: 0, // Convert boolean to integer (false = 0)
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -89,7 +89,13 @@ router.post('/', requireAuth, async (req, res) => {
       return;
     }
 
-    res.status(201).json(device);
+    // Convert integer back to boolean for API response
+    const responseDevice = {
+      ...device,
+      is_online: Boolean(device.is_online)
+    };
+
+    res.status(201).json(responseDevice);
   } catch (error) {
     console.error('Add device error:', error);
     
@@ -150,7 +156,14 @@ router.put('/:id', requireAuth, async (req, res) => {
     }
 
     console.log('Device updated successfully:', device.id);
-    res.json(device);
+    
+    // Convert integer back to boolean for API response
+    const responseDevice = {
+      ...device,
+      is_online: Boolean(device.is_online)
+    };
+
+    res.json(responseDevice);
   } catch (error) {
     console.error('Update device error:', error);
     res.status(500).json({ error: 'Failed to update device: ' + error.message });
@@ -194,7 +207,7 @@ router.post('/:id/sync', requireAuth, async (req, res) => {
     const device = await db
       .updateTable('devices')
       .set({
-        is_online: isOnline,
+        is_online: isOnline ? 1 : 0, // Convert boolean to integer
         last_sync: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -209,10 +222,17 @@ router.post('/:id/sync', requireAuth, async (req, res) => {
     }
 
     console.log('Device synced successfully:', id, 'Online:', isOnline);
+    
+    // Convert integer back to boolean for API response
+    const responseDevice = {
+      ...device,
+      is_online: Boolean(device.is_online)
+    };
+
     res.json({ 
       message: 'Device sync completed',
       is_online: isOnline,
-      device: device
+      device: responseDevice
     });
   } catch (error) {
     console.error('Sync device error:', error);

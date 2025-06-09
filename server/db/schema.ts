@@ -30,7 +30,7 @@ export interface Device {
   port: number;
   username: string;
   password: string;
-  is_online: boolean;
+  is_online: number; // SQLite stores boolean as integer (0/1)
   last_sync: string | null;
   created_at: string;
   updated_at: string;
@@ -64,7 +64,7 @@ export interface HotspotUser {
   password: string;
   profile: string | null;
   comment: string | null;
-  disabled: boolean;
+  disabled: number; // SQLite stores boolean as integer (0/1)
   bytes_in: number;
   bytes_out: number;
   uptime: number;
@@ -81,7 +81,7 @@ export interface PppoeUser {
   service: string | null;
   caller_id: string | null;
   comment: string | null;
-  disabled: boolean;
+  disabled: number; // SQLite stores boolean as integer (0/1)
   contact_name: string | null;
   contact_phone: string | null;
   contact_whatsapp: string | null;
@@ -105,7 +105,7 @@ export interface UserSession {
   bytes_out: number;
   start_time: string;
   end_time: string | null;
-  is_active: boolean;
+  is_active: number; // SQLite stores boolean as integer (0/1)
 }
 
 export interface BrandingSettings {
@@ -125,7 +125,7 @@ export interface Note {
   title: string;
   content: string;
   priority: string;
-  completed: boolean;
+  completed: number; // SQLite stores boolean as integer (0/1)
   due_date: string | null;
   created_at: string;
   updated_at: string;
@@ -148,9 +148,9 @@ export interface WanMonitor {
   name: string;
   host: string;
   description: string | null;
-  is_active: boolean;
+  is_active: number; // SQLite stores boolean as integer (0/1)
   last_ping_time: string | null;
-  last_ping_success: boolean;
+  last_ping_success: number; // SQLite stores boolean as integer (0/1)
   last_ping_latency: number | null;
   created_at: string;
   updated_at: string;
@@ -160,7 +160,7 @@ export interface WanPingHistory {
   id: number;
   wan_monitor_id: number;
   ping_time: string;
-  success: boolean;
+  success: number; // SQLite stores boolean as integer (0/1)
   latency: number | null;
   error_message: string | null;
 }
