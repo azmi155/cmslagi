@@ -298,11 +298,10 @@ router.post('/pppoe/:deviceId/load', requireAuth, async (req, res) => {
   }
 });
 
-// Sync users from device
-router.post('/users/:deviceId/sync', requireAuth, async (req, res) => {
+// Sync hotspot users from device
+router.post('/hotspot/:deviceId/sync-users', requireAuth, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const { type } = req.body; // 'hotspot' or 'pppoe'
     
     // Get device info
     const device = await db
@@ -321,7 +320,7 @@ router.post('/users/:deviceId/sync', requireAuth, async (req, res) => {
       return;
     }
 
-    console.log(`Syncing ${type} users from MikroTik device: ${device.host}`);
+    console.log(`Syncing hotspot users from MikroTik device: ${device.host}`);
     
     const mikrotik = await createMikroTikConnection({
       host: device.host,
@@ -336,122 +335,66 @@ router.post('/users/:deviceId/sync', requireAuth, async (req, res) => {
     }
 
     try {
+      const mikrotikUsers = await mikrotik.getHotspotUsers();
+      console.log(`Found ${mikrotikUsers.length} hotspot users on device`);
+
       let syncedCount = 0;
+      let updatedCount = 0;
 
-      if (type === 'hotspot') {
-        const mikrotikUsers = await mikrotik.getHotspotUsers();
-        console.log(`Found ${mikrotikUsers.length} hotspot users on device`);
+      for (const user of mikrotikUsers) {
+        // Check if user already exists
+        const existing = await db
+          .selectFrom('hotspot_users')
+          .selectAll()
+          .where('device_id', '=', parseInt(deviceId))
+          .where('username', '=', user.name)
+          .executeTakeFirst();
 
-        for (const user of mikrotikUsers) {
-          // Check if user already exists
-          const existing = await db
-            .selectFrom('hotspot_users')
-            .selectAll()
-            .where('device_id', '=', parseInt(deviceId))
-            .where('username', '=', user.name)
-            .executeTakeFirst();
+        if (!existing) {
+          await db
+            .insertInto('hotspot_users')
+            .values({
+              device_id: parseInt(deviceId),
+              username: user.name,
+              password: user.password,
+              profile: user.profile || null,
+              comment: user.comment || null,
+              disabled: user.disabled === 'true' ? 1 : 0,
+              bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) : 0,
+              bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) : 0,
+              uptime: user.uptime ? parseInt(user.uptime) : 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .execute();
 
-          if (!existing) {
-            await db
-              .insertInto('hotspot_users')
-              .values({
-                device_id: parseInt(deviceId),
-                username: user.name,
-                password: user.password,
-                profile: user.profile || null,
-                comment: user.comment || null,
-                disabled: user.disabled === 'true' ? 1 : 0,
-                bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) : 0,
-                bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) : 0,
-                uptime: user.uptime ? parseInt(user.uptime) : 0,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .execute();
+          syncedCount++;
+        } else {
+          // Update existing user with latest data
+          await db
+            .updateTable('hotspot_users')
+            .set({
+              password: user.password,
+              profile: user.profile || null,
+              comment: user.comment || null,
+              disabled: user.disabled === 'true' ? 1 : 0,
+              bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) : 0,
+              bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) : 0,
+              uptime: user.uptime ? parseInt(user.uptime) : 0,
+              updated_at: new Date().toISOString()
+            })
+            .where('id', '=', existing.id)
+            .execute();
 
-            syncedCount++;
-          } else {
-            // Update existing user with latest data
-            await db
-              .updateTable('hotspot_users')
-              .set({
-                password: user.password,
-                profile: user.profile || null,
-                comment: user.comment || null,
-                disabled: user.disabled === 'true' ? 1 : 0,
-                bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) : 0,
-                bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) : 0,
-                uptime: user.uptime ? parseInt(user.uptime) : 0,
-                updated_at: new Date().toISOString()
-              })
-              .where('id', '=', existing.id)
-              .execute();
-          }
-        }
-      } else if (type === 'pppoe') {
-        const mikrotikUsers = await mikrotik.getPppoeUsers();
-        console.log(`Found ${mikrotikUsers.length} PPPoE users on device`);
-
-        for (const user of mikrotikUsers) {
-          // Check if user already exists
-          const existing = await db
-            .selectFrom('pppoe_users')
-            .selectAll()
-            .where('device_id', '=', parseInt(deviceId))
-            .where('username', '=', user.name)
-            .executeTakeFirst();
-
-          if (!existing) {
-            await db
-              .insertInto('pppoe_users')
-              .values({
-                device_id: parseInt(deviceId),
-                username: user.name,
-                password: user.password,
-                profile: user.profile || null,
-                service: user.service || null,
-                caller_id: user['caller-id'] || null,
-                comment: user.comment || null,
-                disabled: user.disabled === 'true' ? 1 : 0,
-                contact_name: null,
-                contact_phone: null,
-                contact_whatsapp: null,
-                service_cost: 0,
-                bytes_in: 0,
-                bytes_out: 0,
-                uptime: 0,
-                customer_name: null,
-                customer_address: null,
-                ip_address: null,
-                service_package_id: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .execute();
-
-            syncedCount++;
-          } else {
-            // Update existing user with latest data
-            await db
-              .updateTable('pppoe_users')
-              .set({
-                password: user.password,
-                profile: user.profile || null,
-                service: user.service || null,
-                caller_id: user['caller-id'] || null,
-                comment: user.comment || null,
-                disabled: user.disabled === 'true' ? 1 : 0,
-                updated_at: new Date().toISOString()
-              })
-              .where('id', '=', existing.id)
-              .execute();
-          }
+          updatedCount++;
         }
       }
 
       res.json({
-        message: `Synchronized ${syncedCount} new ${type} users from device`,
-        synced_count: syncedCount
+        message: `Synchronized ${syncedCount} new and ${updatedCount} existing hotspot users from device`,
+        synced_count: syncedCount,
+        updated_count: updatedCount,
+        total_device_users: mikrotikUsers.length
       });
 
     } finally {
@@ -459,7 +402,156 @@ router.post('/users/:deviceId/sync', requireAuth, async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Sync users error:', error);
+    console.error('Sync hotspot users error:', error);
+    res.status(500).json({ error: 'Failed to sync hotspot users: ' + error.message });
+  }
+});
+
+// Sync PPPoE users from device
+router.post('/pppoe/:deviceId/sync-users', requireAuth, async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    // Get device info
+    const device = await db
+      .selectFrom('devices')
+      .selectAll()
+      .where('id', '=', parseInt(deviceId))
+      .executeTakeFirst();
+
+    if (!device) {
+      res.status(404).json({ error: 'Device not found' });
+      return;
+    }
+
+    if (device.type !== 'MikroTik') {
+      res.status(400).json({ error: 'User synchronization is only available for MikroTik devices' });
+      return;
+    }
+
+    console.log(`Syncing PPPoE users from MikroTik device: ${device.host}`);
+    
+    const mikrotik = await createMikroTikConnection({
+      host: device.host,
+      port: device.port,
+      username: device.username,
+      password: device.password
+    });
+
+    if (!mikrotik) {
+      res.status(500).json({ error: 'Failed to connect to MikroTik device' });
+      return;
+    }
+
+    try {
+      const mikrotikUsers = await mikrotik.getPppoeUsers();
+      console.log(`Found ${mikrotikUsers.length} PPPoE users on device`);
+
+      let syncedCount = 0;
+      let updatedCount = 0;
+
+      for (const user of mikrotikUsers) {
+        // Check if user already exists
+        const existing = await db
+          .selectFrom('pppoe_users')
+          .selectAll()
+          .where('device_id', '=', parseInt(deviceId))
+          .where('username', '=', user.name)
+          .executeTakeFirst();
+
+        if (!existing) {
+          await db
+            .insertInto('pppoe_users')
+            .values({
+              device_id: parseInt(deviceId),
+              username: user.name,
+              password: user.password,
+              profile: user.profile || null,
+              service: user.service || null,
+              caller_id: user['caller-id'] || null,
+              comment: user.comment || null,
+              disabled: user.disabled === 'true' ? 1 : 0,
+              contact_name: null,
+              contact_phone: null,
+              contact_whatsapp: null,
+              service_cost: 0,
+              bytes_in: 0,
+              bytes_out: 0,
+              uptime: 0,
+              customer_name: null,
+              customer_address: null,
+              ip_address: null,
+              service_package_id: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .execute();
+
+          syncedCount++;
+        } else {
+          // Update existing user with latest data
+          await db
+            .updateTable('pppoe_users')
+            .set({
+              password: user.password,
+              profile: user.profile || null,
+              service: user.service || null,
+              caller_id: user['caller-id'] || null,
+              comment: user.comment || null,
+              disabled: user.disabled === 'true' ? 1 : 0,
+              updated_at: new Date().toISOString()
+            })
+            .where('id', '=', existing.id)
+            .execute();
+
+          updatedCount++;
+        }
+      }
+
+      res.json({
+        message: `Synchronized ${syncedCount} new and ${updatedCount} existing PPPoE users from device`,
+        synced_count: syncedCount,
+        updated_count: updatedCount,
+        total_device_users: mikrotikUsers.length
+      });
+
+    } finally {
+      await mikrotik.disconnect();
+    }
+
+  } catch (error) {
+    console.error('Sync PPPoE users error:', error);
+    res.status(500).json({ error: 'Failed to sync PPPoE users: ' + error.message });
+  }
+});
+
+// Legacy sync users endpoint (for backward compatibility)
+router.post('/users/:deviceId/sync', requireAuth, async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const { type } = req.body; // 'hotspot' or 'pppoe'
+    
+    if (type === 'hotspot') {
+      // Redirect to hotspot sync
+      const hotspotResponse = await fetch(`http://localhost:3001/api/profile-management/hotspot/${deviceId}/sync-users`, {
+        method: 'POST',
+        headers: req.headers
+      });
+      const result = await hotspotResponse.json();
+      res.status(hotspotResponse.status).json(result);
+    } else if (type === 'pppoe') {
+      // Redirect to PPPoE sync
+      const pppoeResponse = await fetch(`http://localhost:3001/api/profile-management/pppoe/${deviceId}/sync-users`, {
+        method: 'POST',
+        headers: req.headers
+      });
+      const result = await pppoeResponse.json();
+      res.status(pppoeResponse.status).json(result);
+    } else {
+      res.status(400).json({ error: 'Type parameter is required (hotspot or pppoe)' });
+    }
+  } catch (error) {
+    console.error('Legacy sync users error:', error);
     res.status(500).json({ error: 'Failed to sync users: ' + error.message });
   }
 });

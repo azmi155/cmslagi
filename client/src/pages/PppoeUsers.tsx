@@ -1,12 +1,12 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import { Device, PppoeUser } from '../types';
-import { Plus, Users, Edit, Trash2, Phone, Eye, MessageCircle } from 'lucide-react';
+import { Plus, Users, Edit, Trash2, Phone, Eye, MessageCircle, RefreshCw, Download } from 'lucide-react';
 import { PppoeUserDetailDialog } from '../components/PppoeUserDetailDialog';
 
 export function PppoeUsers() {
@@ -15,6 +15,8 @@ export function PppoeUsers() {
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<PppoeUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSync, setIsSync] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     fetchDevices();
@@ -55,6 +57,33 @@ export function PppoeUsers() {
     }
   };
 
+  const handleSyncUsers = async () => {
+    if (!selectedDevice) return;
+
+    setIsSync(true);
+    setMessage('');
+
+    try {
+      const response = await fetch(`/api/profile-management/pppoe/${selectedDevice}/sync-users`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessage(data.message);
+        await fetchUsers(parseInt(selectedDevice));
+      } else {
+        const error = await response.json();
+        setMessage(error.error || 'Failed to sync PPPoE users');
+      }
+    } catch (error) {
+      console.error('Sync PPPoE users error:', error);
+      setMessage('Failed to sync PPPoE users');
+    } finally {
+      setIsSync(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: number) => {
     if (confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) {
       try {
@@ -63,9 +92,11 @@ export function PppoeUsers() {
         });
         if (response.ok) {
           await fetchUsers(parseInt(selectedDevice));
+          setMessage('User berhasil dihapus');
         }
       } catch (error) {
         console.error('Failed to delete user:', error);
+        setMessage('Gagal menghapus user');
       }
     }
   };
@@ -120,6 +151,8 @@ export function PppoeUsers() {
     );
   }
 
+  const selectedDeviceData = devices.find(d => d.id.toString() === selectedDevice);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -130,28 +163,73 @@ export function PppoeUsers() {
         </Button>
       </div>
 
+      {message && (
+        <div className={`p-4 rounded-md ${
+          message.includes('berhasil') || message.includes('Synchronized') 
+            ? 'bg-green-50 text-green-700 border border-green-200' 
+            : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {message}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMessage('')}
+            className="ml-2 h-6 w-6 p-0"
+          >
+            ×
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <Users className="h-5 w-5 mr-2" />
             Manajemen Pengguna PPPoE
           </CardTitle>
+          <CardDescription>
+            Kelola pengguna PPPoE untuk koneksi dial-up dan layanan internet
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-4">
-            <label className="text-sm font-medium">Pilih Perangkat:</label>
-            <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Pilih perangkat" />
-              </SelectTrigger>
-              <SelectContent>
-                {devices.map((device) => (
-                  <SelectItem key={device.id} value={device.id.toString()}>
-                    {device.name} ({device.host})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <label className="text-sm font-medium">Pilih Perangkat:</label>
+              <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Pilih perangkat" />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices.map((device) => (
+                    <SelectItem key={device.id} value={device.id.toString()}>
+                      {device.name} ({device.host})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedDevice && selectedDeviceData?.type === 'MikroTik' && (
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => fetchUsers(parseInt(selectedDevice))}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+                <Button
+                  onClick={handleSyncUsers}
+                  disabled={isSync}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {isSync ? 'Syncing...' : 'Sinkron dari Perangkat'}
+                </Button>
+              </div>
+            )}
           </div>
 
           {selectedDevice && (
@@ -267,9 +345,20 @@ export function PppoeUsers() {
 
               {users.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  Tidak ada pengguna PPPoE yang ditemukan untuk perangkat ini.
+                  {selectedDeviceData?.type === 'MikroTik' 
+                    ? 'Tidak ada pengguna PPPoE. Klik "Sinkron dari Perangkat" untuk memuat pengguna dari router MikroTik.'
+                    : 'Tidak ada pengguna PPPoE yang ditemukan untuk perangkat ini.'
+                  }
                 </div>
               )}
+            </div>
+          )}
+
+          {selectedDeviceData?.type === 'MikroTik' && (
+            <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded">
+              <strong>Integrasi MikroTik:</strong> Perangkat ini mendukung sinkronisasi pengguna real-time. 
+              Gunakan "Sinkron dari Perangkat" untuk mengimpor semua pengguna yang ada dari router, 
+              atau tambahkan pengguna di sini dan mereka dapat didorong ke perangkat.
             </div>
           )}
         </CardContent>

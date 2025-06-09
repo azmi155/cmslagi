@@ -1,18 +1,20 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import { Device, HotspotUser } from '../types';
-import { Plus, Wifi, Edit, Trash2 } from 'lucide-react';
+import { Plus, Wifi, Edit, Trash2, RefreshCw, Download } from 'lucide-react';
 
 export function HotspotUsers() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [users, setUsers] = useState<HotspotUser[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSync, setIsSync] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     fetchDevices();
@@ -53,6 +55,33 @@ export function HotspotUsers() {
     }
   };
 
+  const handleSyncUsers = async () => {
+    if (!selectedDevice) return;
+
+    setIsSync(true);
+    setMessage('');
+
+    try {
+      const response = await fetch(`/api/profile-management/hotspot/${selectedDevice}/sync-users`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessage(data.message);
+        await fetchUsers(parseInt(selectedDevice));
+      } else {
+        const error = await response.json();
+        setMessage(error.error || 'Failed to sync hotspot users');
+      }
+    } catch (error) {
+      console.error('Sync hotspot users error:', error);
+      setMessage('Failed to sync hotspot users');
+    } finally {
+      setIsSync(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: number) => {
     if (confirm('Are you sure you want to delete this user?')) {
       try {
@@ -61,9 +90,11 @@ export function HotspotUsers() {
         });
         if (response.ok) {
           await fetchUsers(parseInt(selectedDevice));
+          setMessage('User deleted successfully');
         }
       } catch (error) {
         console.error('Failed to delete user:', error);
+        setMessage('Failed to delete user');
       }
     }
   };
@@ -91,6 +122,8 @@ export function HotspotUsers() {
     );
   }
 
+  const selectedDeviceData = devices.find(d => d.id.toString() === selectedDevice);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -101,28 +134,73 @@ export function HotspotUsers() {
         </Button>
       </div>
 
+      {message && (
+        <div className={`p-4 rounded-md ${
+          message.includes('successfully') || message.includes('Synchronized') 
+            ? 'bg-green-50 text-green-700 border border-green-200' 
+            : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {message}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMessage('')}
+            className="ml-2 h-6 w-6 p-0"
+          >
+            ×
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <Wifi className="h-5 w-5 mr-2" />
             Wi-Fi User Management
           </CardTitle>
+          <CardDescription>
+            Manage hotspot users for Wi-Fi authentication and access control
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-4">
-            <label className="text-sm font-medium">Select Device:</label>
-            <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Choose a device" />
-              </SelectTrigger>
-              <SelectContent>
-                {devices.map((device) => (
-                  <SelectItem key={device.id} value={device.id.toString()}>
-                    {device.name} ({device.host})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <label className="text-sm font-medium">Select Device:</label>
+              <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Choose a device" />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices.map((device) => (
+                    <SelectItem key={device.id} value={device.id.toString()}>
+                      {device.name} ({device.host})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedDevice && selectedDeviceData?.type === 'MikroTik' && (
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => fetchUsers(parseInt(selectedDevice))}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+                <Button
+                  onClick={handleSyncUsers}
+                  disabled={isSync}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {isSync ? 'Syncing...' : 'Sync from Device'}
+                </Button>
+              </div>
+            )}
           </div>
 
           {selectedDevice && (
@@ -180,9 +258,20 @@ export function HotspotUsers() {
 
               {users.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  No hotspot users found for this device.
+                  {selectedDeviceData?.type === 'MikroTik' 
+                    ? 'No hotspot users found. Click "Sync from Device" to load users from the MikroTik device.'
+                    : 'No hotspot users found for this device.'
+                  }
                 </div>
               )}
+            </div>
+          )}
+
+          {selectedDeviceData?.type === 'MikroTik' && (
+            <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded">
+              <strong>MikroTik Integration:</strong> This device supports real-time user synchronization. 
+              Use "Sync from Device" to import all existing users from the router, or add users here 
+              and they can be pushed to the device.
             </div>
           )}
         </CardContent>
