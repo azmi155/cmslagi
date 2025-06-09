@@ -1,0 +1,192 @@
+import * as React from 'react';
+import { useEffect, useState } from 'react';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Badge } from '../components/ui/badge';
+import { Device, HotspotUser } from '../types';
+import { Plus, Wifi, Edit, Trash2 } from 'lucide-react';
+
+export function HotspotUsers() {
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [users, setUsers] = useState<HotspotUser[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDevice) {
+      fetchUsers(parseInt(selectedDevice));
+    }
+  }, [selectedDevice]);
+
+  const fetchDevices = async () => {
+    try {
+      const response = await fetch('/api/devices');
+      if (response.ok) {
+        const data = await response.json();
+        setDevices(data);
+        if (data.length > 0 && !selectedDevice) {
+          setSelectedDevice(data[0].id.toString());
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch devices:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchUsers = async (deviceId: number) => {
+    try {
+      const response = await fetch(`/api/users/hotspot/${deviceId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      try {
+        const response = await fetch(`/api/users/hotspot/${userId}`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          await fetchUsers(parseInt(selectedDevice));
+        }
+      } catch (error) {
+        console.error('Failed to delete user:', error);
+      }
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const formatUptime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Hotspot Users</h1>
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Hotspot Users</h1>
+        <Button disabled={!selectedDevice}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add User
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Wifi className="h-5 w-5 mr-2" />
+            Wi-Fi User Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-4">
+            <label className="text-sm font-medium">Select Device:</label>
+            <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Choose a device" />
+              </SelectTrigger>
+              <SelectContent>
+                {devices.map((device) => (
+                  <SelectItem key={device.id} value={device.id.toString()}>
+                    {device.name} ({device.host})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedDevice && (
+            <div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Username</TableHead>
+                    <TableHead>Profile</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Data Usage</TableHead>
+                    <TableHead>Uptime</TableHead>
+                    <TableHead>Comment</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.username}</TableCell>
+                      <TableCell>{user.profile || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.disabled ? 'secondary' : 'default'}>
+                          {user.disabled ? 'Disabled' : 'Active'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          <div>↓ {formatBytes(user.bytes_in)}</div>
+                          <div>↑ {formatBytes(user.bytes_out)}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{formatUptime(user.uptime)}</TableCell>
+                      <TableCell className="max-w-32 truncate">
+                        {user.comment || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-1">
+                          <Button variant="outline" size="sm">
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteUser(user.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {users.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hotspot users found for this device.
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
