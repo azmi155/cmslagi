@@ -340,60 +340,90 @@ router.post('/hotspot/:deviceId/sync-users', requireAuth, async (req, res) => {
 
       let syncedCount = 0;
       let updatedCount = 0;
+      let skippedCount = 0;
 
       for (const user of mikrotikUsers) {
+        // Validate required fields
+        if (!user.name || typeof user.name !== 'string' || user.name.trim() === '') {
+          console.log('Skipping user with invalid name:', user);
+          skippedCount++;
+          continue;
+        }
+
+        // Ensure password is present, use a default if missing
+        const password = user.password && typeof user.password === 'string' && user.password.trim() !== '' 
+          ? user.password 
+          : 'defaultpass'; // Fallback password
+
+        console.log(`Processing user: ${user.name}, password present: ${!!user.password}`);
+
         // Check if user already exists
         const existing = await db
           .selectFrom('hotspot_users')
           .selectAll()
           .where('device_id', '=', parseInt(deviceId))
-          .where('username', '=', user.name)
+          .where('username', '=', user.name.trim())
           .executeTakeFirst();
 
         if (!existing) {
-          await db
-            .insertInto('hotspot_users')
-            .values({
-              device_id: parseInt(deviceId),
-              username: user.name,
-              password: user.password,
-              profile: user.profile || null,
-              comment: user.comment || null,
-              disabled: user.disabled === 'true' ? 1 : 0,
-              bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) : 0,
-              bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) : 0,
-              uptime: user.uptime ? parseInt(user.uptime) : 0,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .execute();
+          try {
+            await db
+              .insertInto('hotspot_users')
+              .values({
+                device_id: parseInt(deviceId),
+                username: user.name.trim(),
+                password: password,
+                profile: user.profile || null,
+                comment: user.comment || null,
+                disabled: user.disabled === 'true' ? 1 : 0,
+                bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) || 0 : 0,
+                bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) || 0 : 0,
+                uptime: user.uptime ? parseInt(user.uptime) || 0 : 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .execute();
 
-          syncedCount++;
+            syncedCount++;
+            console.log(`Successfully synced new user: ${user.name}`);
+          } catch (insertError) {
+            console.error(`Failed to insert user ${user.name}:`, insertError);
+            skippedCount++;
+          }
         } else {
-          // Update existing user with latest data
-          await db
-            .updateTable('hotspot_users')
-            .set({
-              password: user.password,
-              profile: user.profile || null,
-              comment: user.comment || null,
-              disabled: user.disabled === 'true' ? 1 : 0,
-              bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) : 0,
-              bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) : 0,
-              uptime: user.uptime ? parseInt(user.uptime) : 0,
-              updated_at: new Date().toISOString()
-            })
-            .where('id', '=', existing.id)
-            .execute();
+          try {
+            // Update existing user with latest data
+            await db
+              .updateTable('hotspot_users')
+              .set({
+                password: password,
+                profile: user.profile || null,
+                comment: user.comment || null,
+                disabled: user.disabled === 'true' ? 1 : 0,
+                bytes_in: user['bytes-in'] ? parseInt(user['bytes-in']) || 0 : 0,
+                bytes_out: user['bytes-out'] ? parseInt(user['bytes-out']) || 0 : 0,
+                uptime: user.uptime ? parseInt(user.uptime) || 0 : 0,
+                updated_at: new Date().toISOString()
+              })
+              .where('id', '=', existing.id)
+              .execute();
 
-          updatedCount++;
+            updatedCount++;
+            console.log(`Successfully updated existing user: ${user.name}`);
+          } catch (updateError) {
+            console.error(`Failed to update user ${user.name}:`, updateError);
+            skippedCount++;
+          }
         }
       }
 
+      const message = `Synchronized ${syncedCount} new and ${updatedCount} existing hotspot users from device${skippedCount > 0 ? ` (${skippedCount} skipped due to errors)` : ''}`;
+
       res.json({
-        message: `Synchronized ${syncedCount} new and ${updatedCount} existing hotspot users from device`,
+        message: message,
         synced_count: syncedCount,
         updated_count: updatedCount,
+        skipped_count: skippedCount,
         total_device_users: mikrotikUsers.length
       });
 
@@ -449,69 +479,99 @@ router.post('/pppoe/:deviceId/sync-users', requireAuth, async (req, res) => {
 
       let syncedCount = 0;
       let updatedCount = 0;
+      let skippedCount = 0;
 
       for (const user of mikrotikUsers) {
+        // Validate required fields
+        if (!user.name || typeof user.name !== 'string' || user.name.trim() === '') {
+          console.log('Skipping user with invalid name:', user);
+          skippedCount++;
+          continue;
+        }
+
+        // Ensure password is present, use a default if missing
+        const password = user.password && typeof user.password === 'string' && user.password.trim() !== '' 
+          ? user.password 
+          : 'defaultpass'; // Fallback password
+
+        console.log(`Processing PPPoE user: ${user.name}, password present: ${!!user.password}`);
+
         // Check if user already exists
         const existing = await db
           .selectFrom('pppoe_users')
           .selectAll()
           .where('device_id', '=', parseInt(deviceId))
-          .where('username', '=', user.name)
+          .where('username', '=', user.name.trim())
           .executeTakeFirst();
 
         if (!existing) {
-          await db
-            .insertInto('pppoe_users')
-            .values({
-              device_id: parseInt(deviceId),
-              username: user.name,
-              password: user.password,
-              profile: user.profile || null,
-              service: user.service || null,
-              caller_id: user['caller-id'] || null,
-              comment: user.comment || null,
-              disabled: user.disabled === 'true' ? 1 : 0,
-              contact_name: null,
-              contact_phone: null,
-              contact_whatsapp: null,
-              service_cost: 0,
-              bytes_in: 0,
-              bytes_out: 0,
-              uptime: 0,
-              customer_name: null,
-              customer_address: null,
-              ip_address: null,
-              service_package_id: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .execute();
+          try {
+            await db
+              .insertInto('pppoe_users')
+              .values({
+                device_id: parseInt(deviceId),
+                username: user.name.trim(),
+                password: password,
+                profile: user.profile || null,
+                service: user.service || null,
+                caller_id: user['caller-id'] || null,
+                comment: user.comment || null,
+                disabled: user.disabled === 'true' ? 1 : 0,
+                contact_name: null,
+                contact_phone: null,
+                contact_whatsapp: null,
+                service_cost: 0,
+                bytes_in: 0,
+                bytes_out: 0,
+                uptime: 0,
+                customer_name: null,
+                customer_address: null,
+                ip_address: null,
+                service_package_id: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .execute();
 
-          syncedCount++;
+            syncedCount++;
+            console.log(`Successfully synced new PPPoE user: ${user.name}`);
+          } catch (insertError) {
+            console.error(`Failed to insert PPPoE user ${user.name}:`, insertError);
+            skippedCount++;
+          }
         } else {
-          // Update existing user with latest data
-          await db
-            .updateTable('pppoe_users')
-            .set({
-              password: user.password,
-              profile: user.profile || null,
-              service: user.service || null,
-              caller_id: user['caller-id'] || null,
-              comment: user.comment || null,
-              disabled: user.disabled === 'true' ? 1 : 0,
-              updated_at: new Date().toISOString()
-            })
-            .where('id', '=', existing.id)
-            .execute();
+          try {
+            // Update existing user with latest data
+            await db
+              .updateTable('pppoe_users')
+              .set({
+                password: password,
+                profile: user.profile || null,
+                service: user.service || null,
+                caller_id: user['caller-id'] || null,
+                comment: user.comment || null,
+                disabled: user.disabled === 'true' ? 1 : 0,
+                updated_at: new Date().toISOString()
+              })
+              .where('id', '=', existing.id)
+              .execute();
 
-          updatedCount++;
+            updatedCount++;
+            console.log(`Successfully updated existing PPPoE user: ${user.name}`);
+          } catch (updateError) {
+            console.error(`Failed to update PPPoE user ${user.name}:`, updateError);
+            skippedCount++;
+          }
         }
       }
 
+      const message = `Synchronized ${syncedCount} new and ${updatedCount} existing PPPoE users from device${skippedCount > 0 ? ` (${skippedCount} skipped due to errors)` : ''}`;
+
       res.json({
-        message: `Synchronized ${syncedCount} new and ${updatedCount} existing PPPoE users from device`,
+        message: message,
         synced_count: syncedCount,
         updated_count: updatedCount,
+        skipped_count: skippedCount,
         total_device_users: mikrotikUsers.length
       });
 
