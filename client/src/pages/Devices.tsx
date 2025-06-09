@@ -4,8 +4,9 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Device } from '../types';
-import { Plus, RefreshCw, Wifi, WifiOff, Edit, Trash2, Monitor } from 'lucide-react';
+import { Plus, RefreshCw, Wifi, WifiOff, Edit, Trash2, Monitor, TestTube } from 'lucide-react';
 import { DeviceForm } from '../components/DeviceForm';
+import { MikroTikSyncButton } from '../components/MikroTikSyncButton';
 
 export function Devices() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -14,6 +15,7 @@ export function Devices() {
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [testingConnection, setTestingConnection] = useState<number | null>(null);
 
   useEffect(() => {
     fetchDevices();
@@ -44,30 +46,35 @@ export function Devices() {
     }
   };
 
-  const handleSync = async (deviceId: number) => {
+  const handleTestConnection = async (deviceId: number) => {
+    setTestingConnection(deviceId);
+    
     try {
-      console.log('Syncing device:', deviceId);
-      setRefreshing(true);
+      console.log('Testing connection for device:', deviceId);
       
-      const response = await fetch(`/api/devices/${deviceId}/sync`, {
+      const response = await fetch(`/api/devices/${deviceId}/test-connection`, {
         method: 'POST',
       });
       
       if (response.ok) {
         const result = await response.json();
-        console.log('Sync result:', result);
-        await fetchDevices();
-        setError('');
+        console.log('Connection test result:', result);
+        
+        if (result.success) {
+          alert(`Connection successful!\nDevice: ${result.identity}\nVersion: ${result.version}`);
+        } else {
+          alert(`Connection failed: ${result.message}`);
+        }
       } else {
         const errorData = await response.json();
-        console.error('Sync failed:', errorData);
-        setError(errorData.error || 'Failed to sync device');
+        console.error('Connection test failed:', errorData);
+        alert(`Connection test failed: ${errorData.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Failed to sync device:', error);
-      setError('Network error: Failed to sync device');
+      console.error('Failed to test connection:', error);
+      alert('Network error: Failed to test connection');
     } finally {
-      setRefreshing(false);
+      setTestingConnection(null);
     }
   };
 
@@ -117,6 +124,11 @@ export function Devices() {
 
   const handleRefresh = () => {
     setRefreshing(true);
+    fetchDevices();
+  };
+
+  const handleSyncComplete = () => {
+    // Refresh the devices list after sync
     fetchDevices();
   };
 
@@ -171,22 +183,23 @@ export function Devices() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">{device.name}</CardTitle>
-                <Badge variant={device.is_online ? 'default' : 'secondary'}>
-                  {device.is_online ? (
-                    <Wifi className="h-3 w-3 mr-1" />
-                  ) : (
-                    <WifiOff className="h-3 w-3 mr-1" />
-                  )}
-                  {device.is_online ? 'Online' : 'Offline'}
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  <Badge variant={device.type === 'MikroTik' ? 'default' : 'secondary'}>
+                    {device.type}
+                  </Badge>
+                  <Badge variant={device.is_online ? 'default' : 'secondary'}>
+                    {device.is_online ? (
+                      <Wifi className="h-3 w-3 mr-1" />
+                    ) : (
+                      <WifiOff className="h-3 w-3 mr-1" />
+                    )}
+                    {device.is_online ? 'Online' : 'Offline'}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Type:</span>
-                  <span>{device.type}</span>
-                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Host:</span>
                   <span>{device.host}:{device.port}</span>
@@ -207,16 +220,25 @@ export function Devices() {
                 )}
               </div>
               
-              <div className="flex space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => handleSync(device.id)}
-                  disabled={refreshing}
-                >
-                  <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                  Sync
-                </Button>
+              <div className="flex flex-wrap gap-2">
+                {device.type === 'MikroTik' && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleTestConnection(device.id)}
+                    disabled={testingConnection === device.id}
+                  >
+                    <TestTube className={`h-3 w-3 mr-1 ${testingConnection === device.id ? 'animate-pulse' : ''}`} />
+                    {testingConnection === device.id ? 'Testing...' : 'Test'}
+                  </Button>
+                )}
+                
+                <MikroTikSyncButton 
+                  deviceId={device.id} 
+                  deviceType={device.type}
+                  onSyncComplete={handleSyncComplete}
+                />
+                
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -225,6 +247,7 @@ export function Devices() {
                   <Edit className="h-3 w-3 mr-1" />
                   Edit
                 </Button>
+                
                 <Button 
                   variant="destructive" 
                   size="sm" 
@@ -234,6 +257,13 @@ export function Devices() {
                   Delete
                 </Button>
               </div>
+
+              {device.type === 'MikroTik' && (
+                <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded">
+                  <strong>MikroTik Integration:</strong> This device supports real-time sync, 
+                  profile loading, and user management through RouterOS API.
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
