@@ -204,57 +204,60 @@ export function HotspotUsers() {
           </div>
 
           {selectedDevice && (
-            <div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Profile</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Data Usage</TableHead>
-                    <TableHead>Uptime</TableHead>
-                    <TableHead>Comment</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>{user.profile || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.disabled ? 'secondary' : 'default'}>
-                          {user.disabled ? 'Disabled' : 'Active'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-xs">
-                          <div>↓ {formatBytes(user.bytes_in)}</div>
-                          <div>↑ {formatBytes(user.bytes_out)}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatUptime(user.uptime)}</TableCell>
-                      <TableCell className="max-w-32 truncate">
-                        {user.comment || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-1">
-                          <Button variant="outline" size="sm">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="sm"
-                            onClick={() => handleDeleteUser(user.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
+            <div className="relative">
+              {/* Scrollable container for the table */}
+              <div className="overflow-auto max-h-96 border rounded-lg">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Profile</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Data Usage</TableHead>
+                      <TableHead>Uptime</TableHead>
+                      <TableHead>Comment</TableHead>
+                      <TableHead className="sticky right-0 bg-background">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.username}</TableCell>
+                        <TableCell>{user.profile || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.disabled ? 'secondary' : 'default'}>
+                            {user.disabled ? 'Disabled' : 'Active'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs">
+                            <div>↓ {formatBytes(user.bytes_in)}</div>
+                            <div>↑ {formatBytes(user.bytes_out)}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{formatUptime(user.uptime)}</TableCell>
+                        <TableCell className="max-w-32 truncate">
+                          {user.comment || '-'}
+                        </TableCell>
+                        <TableCell className="sticky right-0 bg-background">
+                          <div className="flex space-x-1">
+                            <Button variant="outline" size="sm">
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={() => handleDeleteUser(user.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
               {users.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
@@ -262,6 +265,12 @@ export function HotspotUsers() {
                     ? 'No hotspot users found. Click "Sync from Device" to load users from the MikroTik device.'
                     : 'No hotspot users found for this device.'
                   }
+                </div>
+              )}
+
+              {users.length > 0 && (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Showing {users.length} user{users.length !== 1 ? 's' : ''}
                 </div>
               )}
             </div>

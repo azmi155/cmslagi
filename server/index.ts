@@ -19,6 +19,7 @@ import notesRoutes from './routes/notes.js';
 import deviceStatsRoutes from './routes/device-stats.js';
 import wanMonitorsRoutes from './routes/wan-monitors.js';
 import servicePackagesRoutes from './routes/service-packages.js';
+import trafficRoutes from './routes/traffic.js';
 
 dotenv.config();
 
@@ -65,6 +66,7 @@ app.use('/api/notes', notesRoutes);
 app.use('/api/device-stats', deviceStatsRoutes);
 app.use('/api/wan-monitors', wanMonitorsRoutes);
 app.use('/api/service-packages', servicePackagesRoutes);
+app.use('/api/traffic', trafficRoutes);
 
 // Initialize default admin user if it doesn't exist
 async function initializeDefaultAdmin() {

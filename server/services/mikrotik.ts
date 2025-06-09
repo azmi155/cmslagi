@@ -119,6 +119,23 @@ export class MikroTikService {
     }
   }
 
+  // Get interface statistics
+  async getInterfaceStats(): Promise<any[] | null> {
+    try {
+      this.ensureConnected();
+      
+      const interfaces = await this.api!.write('/interface/print', [
+        '=stats=',
+        '=.proplist=name,type,running,disabled,tx-byte,rx-byte,tx-packet,rx-packet,tx-error,rx-error,tx-drop,rx-drop,mtu,actual-mtu,link-downs,comment'
+      ]);
+      
+      return interfaces || [];
+    } catch (error) {
+      console.error('Failed to get interface statistics:', error.message);
+      return null;
+    }
+  }
+
   // Get hotspot user profiles
   async getHotspotProfiles(): Promise<MikroTikProfile[]> {
     try {
