@@ -13,7 +13,9 @@ import {
   Palette,
   FolderOpen,
   Network,
-  Globe
+  Globe,
+  UserCog,
+  Package
 } from 'lucide-react';
 
 export function Layout() {
@@ -33,7 +35,9 @@ export function Layout() {
     { name: 'WAN Monitoring', href: '/wan-monitoring', icon: Globe },
     { name: 'Hotspot Users', href: '/hotspot-users', icon: Wifi },
     { name: 'PPPoE Users', href: '/pppoe-users', icon: Users },
-    { name: 'Profile Management', href: '/profile-management', icon: FolderOpen },
+    { name: 'Hotspot Profiles', href: '/hotspot-profile-management', icon: Wifi },
+    { name: 'PPPoE Profiles', href: '/pppoe-profile-management', icon: UserCog },
+    { name: 'Service Packages', href: '/service-packages', icon: Package },
     { name: 'Monitoring', href: '/monitoring', icon: Activity },
     { name: 'Branding', href: '/branding', icon: Palette },
     { name: 'Settings', href: '/settings', icon: Settings },

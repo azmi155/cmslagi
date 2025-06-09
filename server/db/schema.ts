@@ -11,6 +11,7 @@ export interface DatabaseSchema {
   device_stats: DeviceStats;
   wan_monitors: WanMonitor;
   wan_ping_history: WanPingHistory;
+  service_packages: ServicePackage;
 }
 
 export interface AdminUser {
@@ -91,6 +92,10 @@ export interface PppoeUser {
   uptime: number;
   created_at: string;
   updated_at: string;
+  customer_name: string | null;
+  customer_address: string | null;
+  ip_address: string | null;
+  service_package_id: number | null;
 }
 
 export interface UserSession {
@@ -163,4 +168,17 @@ export interface WanPingHistory {
   success: number; // SQLite stores boolean as integer (0/1)
   latency: number | null;
   error_message: string | null;
+}
+
+export interface ServicePackage {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  bandwidth_up: string | null;
+  bandwidth_down: string | null;
+  duration_days: number;
+  is_active: number; // SQLite stores boolean as integer (0/1)
+  created_at: string;
+  updated_at: string;
 }

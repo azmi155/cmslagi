@@ -10,7 +10,9 @@ import { Topology } from './pages/Topology';
 import { WanMonitoring } from './pages/WanMonitoring';
 import { HotspotUsers } from './pages/HotspotUsers';
 import { PppoeUsers } from './pages/PppoeUsers';
-import { ProfileManagement } from './pages/ProfileManagement';
+import { HotspotProfileManagement } from './pages/HotspotProfileManagement';
+import { PppoeProfileManagement } from './pages/PppoeProfileManagement';
+import { ServicePackages } from './pages/ServicePackages';
 import { Monitoring } from './pages/Monitoring';
 import { Branding } from './pages/Branding';
 import { Settings } from './pages/Settings';
@@ -45,7 +47,9 @@ function AppRoutes() {
         <Route path="wan-monitoring" element={<WanMonitoring />} />
         <Route path="hotspot-users" element={<HotspotUsers />} />
         <Route path="pppoe-users" element={<PppoeUsers />} />
-        <Route path="profile-management" element={<ProfileManagement />} />
+        <Route path="hotspot-profile-management" element={<HotspotProfileManagement />} />
+        <Route path="pppoe-profile-management" element={<PppoeProfileManagement />} />
+        <Route path="service-packages" element={<ServicePackages />} />
         <Route path="monitoring" element={<Monitoring />} />
         <Route path="branding" element={<Branding />} />
         <Route path="settings" element={<Settings />} />

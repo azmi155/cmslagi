@@ -6,12 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import { Device, PppoeUser } from '../types';
-import { Plus, Users, Edit, Trash2, Phone } from 'lucide-react';
+import { Plus, Users, Edit, Trash2, Phone, Eye, MessageCircle } from 'lucide-react';
+import { PppoeUserDetailDialog } from '../components/PppoeUserDetailDialog';
 
 export function PppoeUsers() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [users, setUsers] = useState<PppoeUser[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
+  const [selectedUser, setSelectedUser] = useState<PppoeUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function PppoeUsers() {
   };
 
   const handleDeleteUser = async (userId: number) => {
-    if (confirm('Are you sure you want to delete this user?')) {
+    if (confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) {
       try {
         const response = await fetch(`/api/users/pppoe/${userId}`, {
           method: 'DELETE',
@@ -65,6 +67,18 @@ export function PppoeUsers() {
       } catch (error) {
         console.error('Failed to delete user:', error);
       }
+    }
+  };
+
+  const handleViewUser = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/users/pppoe/detail/${userId}`);
+      if (response.ok) {
+        const userData = await response.json();
+        setSelectedUser(userData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user details:', error);
     }
   };
 
@@ -82,17 +96,25 @@ export function PppoeUsers() {
     return `${hours}h ${minutes}m`;
   };
 
-  const openWhatsApp = (phone: string) => {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR'
+    }).format(amount);
+  };
+
+  const openWhatsApp = (phone: string, customerName?: string) => {
     if (phone) {
       const cleanPhone = phone.replace(/\D/g, '');
-      window.open(`https://wa.me/${cleanPhone}`, '_blank');
+      const message = `Halo ${customerName || 'Pelanggan'}, kami dari layanan internet. Ada yang bisa kami bantu?`;
+      window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
     }
   };
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">PPPoE Users</h1>
+        <h1 className="text-3xl font-bold">Pengguna PPPoE</h1>
         <div className="text-center">Loading...</div>
       </div>
     );
@@ -101,10 +123,10 @@ export function PppoeUsers() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">PPPoE Users</h1>
+        <h1 className="text-3xl font-bold">Pengguna PPPoE</h1>
         <Button disabled={!selectedDevice}>
           <Plus className="h-4 w-4 mr-2" />
-          Add User
+          Tambah Pengguna
         </Button>
       </div>
 
@@ -112,15 +134,15 @@ export function PppoeUsers() {
         <CardHeader>
           <CardTitle className="flex items-center">
             <Users className="h-5 w-5 mr-2" />
-            PPPoE User Management
+            Manajemen Pengguna PPPoE
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-4">
-            <label className="text-sm font-medium">Select Device:</label>
+            <label className="text-sm font-medium">Pilih Perangkat:</label>
             <Select value={selectedDevice} onValueChange={setSelectedDevice}>
               <SelectTrigger className="w-64">
-                <SelectValue placeholder="Choose a device" />
+                <SelectValue placeholder="Pilih perangkat" />
               </SelectTrigger>
               <SelectContent>
                 {devices.map((device) => (
@@ -137,68 +159,102 @@ export function PppoeUsers() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Nama Pelanggan</TableHead>
                     <TableHead>Username</TableHead>
-                    <TableHead>Profile</TableHead>
+                    <TableHead>IP Address</TableHead>
+                    <TableHead>Paket Layanan</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Service Cost</TableHead>
-                    <TableHead>Data Usage</TableHead>
-                    <TableHead>Uptime</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>Kontak</TableHead>
+                    <TableHead>Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>{user.profile || '-'}</TableCell>
+                    <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50">
                       <TableCell>
-                        <Badge variant={user.disabled ? 'secondary' : 'default'}>
-                          {user.disabled ? 'Disabled' : 'Active'}
-                        </Badge>
+                        <div>
+                          <div className="font-medium">
+                            {user.customer_name || user.contact_name || '-'}
+                          </div>
+                          {user.customer_address && (
+                            <div className="text-xs text-muted-foreground truncate max-w-32">
+                              {user.customer_address}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono">{user.username}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {user.ip_address || '-'}
                       </TableCell>
                       <TableCell>
-                        {user.contact_name && (
-                          <div className="space-y-1">
-                            <div className="font-medium">{user.contact_name}</div>
-                            {user.contact_phone && (
-                              <div className="text-xs text-muted-foreground">
-                                {user.contact_phone}
+                        {user.package_name ? (
+                          <div>
+                            <div className="font-medium">{user.package_name}</div>
+                            {user.package_price && (
+                              <div className="text-xs text-green-600">
+                                {formatCurrency(user.package_price)}
                               </div>
                             )}
-                            {user.contact_whatsapp && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openWhatsApp(user.contact_whatsapp!)}
-                                className="h-6 px-2 text-xs"
-                              >
-                                <Phone className="h-3 w-3 mr-1" />
-                                WhatsApp
-                              </Button>
-                            )}
                           </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        {user.service_cost > 0 ? `$${user.service_cost}` : '-'}
+                        <Badge variant={user.disabled ? 'secondary' : 'default'}>
+                          {user.disabled ? 'Nonaktif' : 'Aktif'}
+                        </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="text-xs">
-                          <div>↓ {formatBytes(user.bytes_in)}</div>
-                          <div>↑ {formatBytes(user.bytes_out)}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatUptime(user.uptime)}</TableCell>
                       <TableCell>
                         <div className="flex space-x-1">
-                          <Button variant="outline" size="sm">
+                          {user.contact_phone && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`tel:${user.contact_phone}`, '_self');
+                              }}
+                              title="Telepon"
+                            >
+                              <Phone className="h-3 w-3" />
+                            </Button>
+                          )}
+                          {user.contact_whatsapp && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openWhatsApp(user.contact_whatsapp!, user.customer_name || user.contact_name);
+                              }}
+                              className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                              title="WhatsApp"
+                            >
+                              <MessageCircle className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewUser(user.id)}
+                            title="Lihat Detail"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button variant="outline" size="sm" title="Edit">
                             <Edit className="h-3 w-3" />
                           </Button>
                           <Button 
                             variant="destructive" 
                             size="sm"
                             onClick={() => handleDeleteUser(user.id)}
+                            title="Hapus"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -211,13 +267,26 @@ export function PppoeUsers() {
 
               {users.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  No PPPoE users found for this device.
+                  Tidak ada pengguna PPPoE yang ditemukan untuk perangkat ini.
                 </div>
               )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* User Detail Dialog */}
+      {selectedUser && (
+        <PppoeUserDetailDialog
+          user={selectedUser}
+          onClose={() => setSelectedUser(null)}
+          onEdit={(user) => {
+            // TODO: Implement edit functionality
+            console.log('Edit user:', user);
+            setSelectedUser(null);
+          }}
+        />
+      )}
     </div>
   );
 }

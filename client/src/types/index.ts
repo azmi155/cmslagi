@@ -52,6 +52,16 @@ export interface PppoeUser {
   uptime: number;
   created_at: string;
   updated_at: string;
+  customer_name?: string | null;
+  customer_address?: string | null;
+  ip_address?: string | null;
+  service_package_id?: number | null;
+  package_name?: string | null;
+  package_description?: string | null;
+  package_price?: number | null;
+  package_bandwidth_up?: string | null;
+  package_bandwidth_down?: string | null;
+  package_duration_days?: number | null;
 }
 
 export interface HotspotProfile {
@@ -73,6 +83,19 @@ export interface PppoeProfile {
   rate_limit: string | null;
   session_timeout: number | null;
   created_at: string;
+}
+
+export interface ServicePackage {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  bandwidth_up: string | null;
+  bandwidth_down: string | null;
+  duration_days: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DashboardStats {
