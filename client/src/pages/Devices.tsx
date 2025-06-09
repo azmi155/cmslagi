@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Device } from '../types';
-import { Plus, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { Plus, RefreshCw, Wifi, WifiOff, Edit, Trash2, Monitor } from 'lucide-react';
 import { DeviceForm } from '../components/DeviceForm';
 
 export function Devices() {
@@ -12,6 +12,7 @@ export function Devices() {
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchDevices();
@@ -19,13 +20,23 @@ export function Devices() {
 
   const fetchDevices = async () => {
     try {
+      console.log('Fetching devices...');
       const response = await fetch('/api/devices');
+      console.log('Devices response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Devices fetched:', data.length);
         setDevices(data);
+        setError('');
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to fetch devices:', errorData);
+        setError(errorData.error || 'Failed to fetch devices');
       }
     } catch (error) {
       console.error('Failed to fetch devices:', error);
+      setError('Network error: Failed to fetch devices');
     } finally {
       setIsLoading(false);
     }
@@ -33,18 +44,29 @@ export function Devices() {
 
   const handleSync = async (deviceId: number) => {
     try {
+      console.log('Syncing device:', deviceId);
       const response = await fetch(`/api/devices/${deviceId}/sync`, {
         method: 'POST',
       });
+      
       if (response.ok) {
+        const result = await response.json();
+        console.log('Sync result:', result);
         await fetchDevices();
+        setError('');
+      } else {
+        const errorData = await response.json();
+        console.error('Sync failed:', errorData);
+        setError(errorData.error || 'Failed to sync device');
       }
     } catch (error) {
       console.error('Failed to sync device:', error);
+      setError('Network error: Failed to sync device');
     }
   };
 
   const handleEdit = (device: Device) => {
+    console.log('Editing device:', device);
     setEditingDevice(device);
     setShowForm(true);
   };
@@ -52,28 +74,47 @@ export function Devices() {
   const handleDelete = async (deviceId: number) => {
     if (confirm('Are you sure you want to delete this device?')) {
       try {
+        console.log('Deleting device:', deviceId);
         const response = await fetch(`/api/devices/${deviceId}`, {
           method: 'DELETE',
         });
+        
         if (response.ok) {
+          console.log('Device deleted successfully');
           await fetchDevices();
+          setError('');
+        } else {
+          const errorData = await response.json();
+          console.error('Delete failed:', errorData);
+          setError(errorData.error || 'Failed to delete device');
         }
       } catch (error) {
         console.error('Failed to delete device:', error);
+        setError('Network error: Failed to delete device');
       }
     }
   };
 
   const handleFormClose = () => {
+    console.log('Closing device form');
     setShowForm(false);
     setEditingDevice(null);
     fetchDevices();
   };
 
+  const handleAddDevice = () => {
+    console.log('Opening add device form');
+    setEditingDevice(null);
+    setShowForm(true);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Devices</h1>
+        <div className="flex items-center">
+          <Monitor className="h-8 w-8 mr-3" />
+          <h1 className="text-3xl font-bold">Network Devices</h1>
+        </div>
         <div className="text-center">Loading...</div>
       </div>
     );
@@ -82,12 +123,29 @@ export function Devices() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Network Devices</h1>
-        <Button onClick={() => setShowForm(true)}>
+        <div className="flex items-center">
+          <Monitor className="h-8 w-8 mr-3" />
+          <h1 className="text-3xl font-bold">Network Devices</h1>
+        </div>
+        <Button onClick={handleAddDevice}>
           <Plus className="h-4 w-4 mr-2" />
           Add Device
         </Button>
       </div>
+
+      {error && (
+        <div className="p-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+          {error}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setError('')}
+            className="ml-2 h-6 w-6 p-0"
+          >
+            ×
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {devices.map((device) => (
@@ -119,6 +177,10 @@ export function Devices() {
                   <span className="text-muted-foreground">Username:</span>
                   <span>{device.username}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Created:</span>
+                  <span>{new Date(device.created_at).toLocaleDateString()}</span>
+                </div>
                 {device.last_sync && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Last Sync:</span>
@@ -141,6 +203,7 @@ export function Devices() {
                   size="sm" 
                   onClick={() => handleEdit(device)}
                 >
+                  <Edit className="h-3 w-3 mr-1" />
                   Edit
                 </Button>
                 <Button 
@@ -148,6 +211,7 @@ export function Devices() {
                   size="sm" 
                   onClick={() => handleDelete(device.id)}
                 >
+                  <Trash2 className="h-3 w-3 mr-1" />
                   Delete
                 </Button>
               </div>
@@ -156,12 +220,17 @@ export function Devices() {
         ))}
       </div>
 
-      {devices.length === 0 && (
+      {devices.length === 0 && !error && (
         <Card>
           <CardContent className="text-center py-8">
+            <Monitor className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground">
-              No devices configured. Click "Add Device" to get started.
+              No devices configured yet. Click "Add Device" to get started.
             </p>
+            <Button onClick={handleAddDevice} className="mt-4">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Device
+            </Button>
           </CardContent>
         </Card>
       )}

@@ -22,14 +22,20 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
     password: device?.password || '',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
+
+    console.log('Submitting form with data:', formData);
 
     try {
       const url = device ? `/api/devices/${device.id}` : '/api/devices';
       const method = device ? 'PUT' : 'POST';
+
+      console.log(`Making ${method} request to ${url}`);
 
       const response = await fetch(url, {
         method,
@@ -39,21 +45,32 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
         body: JSON.stringify(formData),
       });
 
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
+        const result = await response.json();
+        console.log('Device saved successfully:', result);
         onClose();
+      } else {
+        const errorData = await response.json();
+        console.error('Server error:', errorData);
+        setError(errorData.error || 'Failed to save device');
       }
     } catch (error) {
       console.error('Failed to save device:', error);
+      setError('Network error: Failed to save device');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleInputChange = (field: string, value: string | number) => {
+    console.log(`Changing ${field} to:`, value);
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
+    setError(''); // Clear error when user makes changes
   };
 
   return (
@@ -66,6 +83,12 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+              {error}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="name">Device Name</Label>
             <Input
@@ -87,6 +110,9 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
                 <SelectItem value="MikroTik">MikroTik</SelectItem>
                 <SelectItem value="Ruijie">Ruijie</SelectItem>
                 <SelectItem value="OLT">OLT</SelectItem>
+                <SelectItem value="Router">Router</SelectItem>
+                <SelectItem value="Switch">Switch</SelectItem>
+                <SelectItem value="Wireless">Wireless</SelectItem>
                 <SelectItem value="Generic">Generic</SelectItem>
               </SelectContent>
             </Select>
@@ -109,7 +135,7 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
                 id="port"
                 type="number"
                 value={formData.port}
-                onChange={(e) => handleInputChange('port', parseInt(e.target.value))}
+                onChange={(e) => handleInputChange('port', parseInt(e.target.value) || 8728)}
                 placeholder="8728"
                 required
               />
