@@ -31,15 +31,27 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Validate required fields
     if (!name || !type || !host || !username || !password) {
-      console.log('Missing required fields:', { name, type, host, username, password: password ? '[PROVIDED]' : '[MISSING]' });
-      res.status(400).json({ error: 'All fields are required' });
+      console.log('Missing required fields:', { 
+        name: !!name, 
+        type: !!type, 
+        host: !!host, 
+        username: !!username, 
+        password: !!password 
+      });
+      res.status(400).json({ error: 'All fields (name, type, host, username, password) are required' });
       return;
     }
 
-    // Validate port
-    const devicePort = port || 8728;
+    // Validate and set default port
+    let devicePort = port;
+    if (!devicePort) {
+      devicePort = 8728; // Default MikroTik API port
+    }
+    
+    // Convert to number and validate
+    devicePort = parseInt(devicePort.toString());
     if (isNaN(devicePort) || devicePort < 1 || devicePort > 65535) {
-      console.log('Invalid port:', devicePort);
+      console.log('Invalid port:', port, 'converted to:', devicePort);
       res.status(400).json({ error: 'Port must be a valid number between 1 and 65535' });
       return;
     }
@@ -56,12 +68,12 @@ router.post('/', requireAuth, async (req, res) => {
     const device = await db
       .insertInto('devices')
       .values({
-        name,
-        type,
-        host,
+        name: name.trim(),
+        type: type.trim(),
+        host: host.trim(),
         port: devicePort,
-        username,
-        password,
+        username: username.trim(),
+        password: password,
         is_online: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -70,10 +82,24 @@ router.post('/', requireAuth, async (req, res) => {
       .executeTakeFirst();
 
     console.log('Device created successfully:', device?.id);
+    
+    if (!device) {
+      console.error('Device creation failed - no data returned');
+      res.status(500).json({ error: 'Failed to create device - no data returned' });
+      return;
+    }
+
     res.status(201).json(device);
   } catch (error) {
     console.error('Add device error:', error);
-    res.status(500).json({ error: 'Failed to add device' });
+    
+    // Check for specific SQLite errors
+    if (error.message && error.message.includes('UNIQUE constraint')) {
+      res.status(400).json({ error: 'A device with this name or host already exists' });
+      return;
+    }
+    
+    res.status(500).json({ error: 'Failed to add device: ' + error.message });
   }
 });
 
@@ -93,8 +119,9 @@ router.put('/:id', requireAuth, async (req, res) => {
       return;
     }
 
-    // Validate port
-    const devicePort = port || 8728;
+    // Validate and set default port
+    let devicePort = port || 8728;
+    devicePort = parseInt(devicePort.toString());
     if (isNaN(devicePort) || devicePort < 1 || devicePort > 65535) {
       console.log('Invalid port for update:', devicePort);
       res.status(400).json({ error: 'Port must be a valid number between 1 and 65535' });
@@ -104,12 +131,12 @@ router.put('/:id', requireAuth, async (req, res) => {
     const device = await db
       .updateTable('devices')
       .set({
-        name,
-        type,
-        host,
+        name: name.trim(),
+        type: type.trim(),
+        host: host.trim(),
         port: devicePort,
-        username,
-        password,
+        username: username.trim(),
+        password: password,
         updated_at: new Date().toISOString()
       })
       .where('id', '=', parseInt(id))
@@ -126,7 +153,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     res.json(device);
   } catch (error) {
     console.error('Update device error:', error);
-    res.status(500).json({ error: 'Failed to update device' });
+    res.status(500).json({ error: 'Failed to update device: ' + error.message });
   }
 });
 
@@ -184,7 +211,8 @@ router.post('/:id/sync', requireAuth, async (req, res) => {
     console.log('Device synced successfully:', id, 'Online:', isOnline);
     res.json({ 
       message: 'Device sync completed',
-      is_online: isOnline 
+      is_online: isOnline,
+      device: device
     });
   } catch (error) {
     console.error('Sync device error:', error);

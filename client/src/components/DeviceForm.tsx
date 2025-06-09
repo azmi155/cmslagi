@@ -29,7 +29,38 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
     setIsLoading(true);
     setError('');
 
-    console.log('Submitting form with data:', formData);
+    console.log('Submitting form with data:', { ...formData, password: '[HIDDEN]' });
+
+    // Client-side validation
+    if (!formData.name.trim()) {
+      setError('Device name is required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!formData.host.trim()) {
+      setError('Host/IP address is required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!formData.username.trim()) {
+      setError('Username is required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!formData.password.trim()) {
+      setError('Password is required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (formData.port < 1 || formData.port > 65535) {
+      setError('Port must be between 1 and 65535');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const url = device ? `/api/devices/${device.id}` : '/api/devices';
@@ -54,11 +85,11 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
       } else {
         const errorData = await response.json();
         console.error('Server error:', errorData);
-        setError(errorData.error || 'Failed to save device');
+        setError(errorData.error || `Failed to ${device ? 'update' : 'create'} device`);
       }
     } catch (error) {
       console.error('Failed to save device:', error);
-      setError('Network error: Failed to save device');
+      setError(`Network error: Failed to ${device ? 'update' : 'create'} device`);
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +121,7 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="name">Device Name</Label>
+            <Label htmlFor="name">Device Name *</Label>
             <Input
               id="name"
               value={formData.name}
@@ -101,7 +132,7 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="type">Device Type</Label>
+            <Label htmlFor="type">Device Type *</Label>
             <Select value={formData.type} onValueChange={(value) => handleInputChange('type', value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select device type" />
@@ -120,7 +151,7 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="host">IP Address</Label>
+              <Label htmlFor="host">IP Address *</Label>
               <Input
                 id="host"
                 value={formData.host}
@@ -134,6 +165,8 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
               <Input
                 id="port"
                 type="number"
+                min="1"
+                max="65535"
                 value={formData.port}
                 onChange={(e) => handleInputChange('port', parseInt(e.target.value) || 8728)}
                 placeholder="8728"
@@ -143,7 +176,7 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="username">Username *</Label>
             <Input
               id="username"
               value={formData.username}
@@ -154,7 +187,7 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Password *</Label>
             <Input
               id="password"
               type="password"
@@ -163,6 +196,10 @@ export function DeviceForm({ device, onClose }: DeviceFormProps) {
               placeholder="••••••••"
               required
             />
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            * Required fields
           </div>
 
           <div className="flex justify-end space-x-2">

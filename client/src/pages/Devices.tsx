@@ -13,6 +13,7 @@ export function Devices() {
   const [showForm, setShowForm] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -39,12 +40,15 @@ export function Devices() {
       setError('Network error: Failed to fetch devices');
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 
   const handleSync = async (deviceId: number) => {
     try {
       console.log('Syncing device:', deviceId);
+      setRefreshing(true);
+      
       const response = await fetch(`/api/devices/${deviceId}/sync`, {
         method: 'POST',
       });
@@ -62,6 +66,8 @@ export function Devices() {
     } catch (error) {
       console.error('Failed to sync device:', error);
       setError('Network error: Failed to sync device');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -99,6 +105,7 @@ export function Devices() {
     console.log('Closing device form');
     setShowForm(false);
     setEditingDevice(null);
+    // Refresh the devices list after form closes
     fetchDevices();
   };
 
@@ -106,6 +113,11 @@ export function Devices() {
     console.log('Opening add device form');
     setEditingDevice(null);
     setShowForm(true);
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchDevices();
   };
 
   if (isLoading) {
@@ -127,10 +139,16 @@ export function Devices() {
           <Monitor className="h-8 w-8 mr-3" />
           <h1 className="text-3xl font-bold">Network Devices</h1>
         </div>
-        <Button onClick={handleAddDevice}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Device
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button onClick={handleAddDevice}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Device
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -194,8 +212,9 @@ export function Devices() {
                   variant="outline" 
                   size="sm" 
                   onClick={() => handleSync(device.id)}
+                  disabled={refreshing}
                 >
-                  <RefreshCw className="h-3 w-3 mr-1" />
+                  <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
                   Sync
                 </Button>
                 <Button 
@@ -224,10 +243,10 @@ export function Devices() {
         <Card>
           <CardContent className="text-center py-8">
             <Monitor className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-4">
               No devices configured yet. Click "Add Device" to get started.
             </p>
-            <Button onClick={handleAddDevice} className="mt-4">
+            <Button onClick={handleAddDevice}>
               <Plus className="h-4 w-4 mr-2" />
               Add Your First Device
             </Button>
